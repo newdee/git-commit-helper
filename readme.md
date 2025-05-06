@@ -21,10 +21,10 @@ Git Commit Helper is a practical tool that leverages large language models (LLMs
 - **tokio**: 1.45.0 (with `full` feature) - Manages asynchronous tasks.
 
 ## Usage
-(Here you can add specific usage instructions for the tool, such as how to install and run it.)
+```
+git-commit-helper
+```
 
-## Contributing
-(If you welcome contributions, you can add guidelines on how others can contribute to this project.)
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
