@@ -69,7 +69,8 @@ fn commit_with_git(repo: &Repository, message: &str) -> Result<(), Box<dyn Error
 }
 
 async fn call_openai(prompt: &str, model: &str, max_token: u32) -> Result<String, Box<dyn Error>> {
-    let base_url = std::env::var("OPENAI_BASE_URL").unwrap_or_else(|_| "".to_string());
+    let base_url = std::env::var("OPENAI_BASE_URL")
+        .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
     let config = OpenAIConfig::default().with_api_base(base_url);
     let client = OpenAIClient::with_config(config);
     let request = CreateChatCompletionRequestArgs::default()

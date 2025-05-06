@@ -26,6 +26,8 @@ cargo install git-commit-helper
 ```
 
 ## Usage
+- Set `OPENAI_BASE_URL`(Optional),`OPENAI_API_KEY`(Requires) in your environment.
+- Use this command after your `git add` command.
 ```
 Usage: git-commit-helper [OPTIONS]
 
