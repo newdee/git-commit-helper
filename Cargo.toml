@@ -8,7 +8,6 @@ description = "A helper tool designed to assist with Git commit messages. It lev
 license = "MIT"
 keywords = ["git", "commit"]
 categories = ["command-line-utilities" ]
-publish = ["crates.io"]
 
 
 
