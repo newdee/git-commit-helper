@@ -3,6 +3,9 @@ name = "git-commit-helper"
 version = "0.1.0"
 authors = ["coding@dfine.tech"]
 edition = "2024"
+description = "A helper tool designed to assist with Git commit messages. It leverages the async - openai library to generate meaningful commit messages based on the changes in the Git repository. With the help of clap, it provides a user - friendly command - line interface, and uses other libraries like git2, reqwest, serde, and tokio to handle Git operations, network requests, serialization, and asynchronous tasks respectively."
+license = "MIT"
+
 
 [dependencies]
 async-openai = "0.28.1"
