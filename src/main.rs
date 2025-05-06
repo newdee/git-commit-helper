@@ -123,8 +123,8 @@ fn prompt_user_action() -> Result<UserChoice, Box<dyn Error>> {
 struct Args {
     #[arg(short, long, default_value_t = String::from("gpt-4o"))]
     model: String,
-    #[arg(short, long, default_value_t = 3)]
-    count: u8,
+    //#[arg(short, long, default_value_t = 3)]
+    //count: u8,
     #[arg(long, default_value_t = 2048_u32)]
     max_token: u32,
 }
