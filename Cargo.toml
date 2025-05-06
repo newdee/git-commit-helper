@@ -1,6 +1,7 @@
 [package]
 name = "git-commit-helper"
 version = "0.1.0"
+authors = ["coding@dfine.tech"]
 edition = "2024"
 
 [dependencies]
