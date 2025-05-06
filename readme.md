@@ -20,11 +20,21 @@ Git Commit Helper is a practical tool that leverages large language models (LLMs
 - **serde_json**: 1.0.140 - Handles JSON data.
 - **tokio**: 1.45.0 (with `full` feature) - Manages asynchronous tasks.
 
-## Usage
+## Install
 ```
-git-commit-helper
+cargo install git-commit-helper
 ```
 
+## Usage
+```
+Usage: git-commit-helper [OPTIONS]
+
+Options:
+  -m, --model <MODEL>          [default: gpt-4o]
+      --max-token <MAX_TOKEN>  [default: 2048]
+  -h, --help                   Print help
+  -V, --version                Print version
+```
 
 ## License
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
