@@ -57,7 +57,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          file: target/${{ matrix.target }}/release/${{ matrix.files }}
+          files: target/${{ matrix.target }}/release/${{ matrix.file }}
           body: "Release of git-commit-helper"
           token: ${{ secrets.ACCESS_TOKEN }}
 
@@ -67,6 +67,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: target/${{ matrix.target }}/release/${{ matrix.files }}
+          asset_path: target/${{ matrix.target }}/release/${{ matrix.file }}
           asset_name: git-commit-helper-${{ matrix.target }}
           asset_content_type: application/octet-stream
