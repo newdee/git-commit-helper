@@ -18,22 +18,22 @@ jobs:
           - build: linux_x86_64
             target: x86_64-unknown-linux-gnu
             os: self-hosted
-            #command: sudo apt update && sudo apt-get install protobuf-compiler  pkg-config -y
+            command: sudo apt update && sudo apt-get install libssl-dev -y
             file: git-commit-helper
           - build: macos_x86_64
             target: x86_64-apple-darwin
             os: macos-latest
-            # command: brew install protobuf
+            command: brew install openssl
             file: git-commit-helper
           - build: macos_arm64
             target: aarch64-apple-darwin
             os: macos-latest
-            # command: brew install protobuf
+            command: brew install openssl
             file: git-commit-helper
           - build: windows_x86_64
             target: x86_64-pc-windows-msvc
             os: windows-latest
-            # command: choco install protoc
+            command: choco install openssl
             file: git-commit-helper.exe
     steps:
     - uses: actions/checkout@v4
