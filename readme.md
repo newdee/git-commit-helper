@@ -9,6 +9,8 @@ You can use the `git-commit-helper` command directly to generate meaningful comm
 [![asciicast](https://asciinema.org/a/718306.svg)](https://asciinema.org/a/718306)
 
 ## Install
+You can either download the corresponding package released in the `release` section or use the following command to install:
+
 ```
 cargo install git-commit-helper
 ```
