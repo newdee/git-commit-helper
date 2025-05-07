@@ -3,6 +3,10 @@
 ## Overview
 Git Commit Helper is a practical tool that leverages large language models (LLMs) to analyze changes in a Git repository. It helps users generate meaningful commit messages, addressing the difficulties users may encounter when writing commit messages. At the same time, it provides a user - friendly command - line interaction experience.
 
+## Preview
+You can use the `git-commit-helper` command directly to generate meaningful commit messages. Additionally, you can also use it within `lazygit` to quickly submit commits. Here is a preview video of using `git-commit-helper` in `lazygit`.
+
+[![asciicast](https://asciinema.org/a/718306.svg)](https://asciinema.org/a/718306)
 
 ## Install
 ```
