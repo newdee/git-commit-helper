@@ -1,7 +1,7 @@
 # Git Commit Helper
 
 ## Overview
-Git Commit Helper is a practical tool that leverages large language models (LLMs) and uses the `async-openai` library to analyze changes in a Git repository, helping users generate meaningful commit messages. It employs `clap` to provide a user-friendly command-line interface, and also utilizes `git2`, `reqwest`, `serde`, and `tokio` to handle Git operations, network requests, serialization, and asynchronous tasks respectively.
+Git Commit Helper is a practical tool that leverages large language models (LLMs) to analyze changes in a Git repository. It helps users generate meaningful commit messages, addressing the difficulties users may encounter when writing commit messages. At the same time, it provides a user - friendly command - line interaction experience.
 
 
 ## Install
