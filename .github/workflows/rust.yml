@@ -18,17 +18,17 @@ jobs:
           - build: linux_x86_64
             target: x86_64-unknown-linux-gnu
             os: self-hosted
-            command: sudo apt update && sudo apt-get install libssl-dev -y
+            command: sudo apt update && sudo apt-get install libssl-dev pkg-config -y
             file: git-commit-helper
           - build: macos_x86_64
             target: x86_64-apple-darwin
             os: macos-latest
-            command: brew install openssl
+            command: brew install openssl@3
             file: git-commit-helper
           - build: macos_arm64
             target: aarch64-apple-darwin
             os: macos-latest
-            command: brew install openssl
+            command: brew install openssl@3
             file: git-commit-helper
           - build: windows_x86_64
             target: x86_64-pc-windows-msvc
@@ -42,6 +42,14 @@ jobs:
         
     # - name: Test
     #   run: cargo test --verbose
+    - name: Set OpenSSL env (for macOS x86 only)
+      if: matrix.target == 'x86_64-apple-darwin'
+      run: |
+        export OPENSSL_PREFIX=$(brew --prefix openssl@3)
+        echo "OPENSSL_DIR=$OPENSSL_PREFIX" >> $GITHUB_ENV
+        echo "OPENSSL_INCLUDE_DIR=$OPENSSL_PREFIX/include" >> $GITHUB_ENV
+        echo "OPENSSL_LIB_DIR=$OPENSSL_PREFIX/lib" >> $GITHUB_ENV
+        echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
 
     - name: Add Nasm
       if: startsWith(matrix.os, 'windows')
