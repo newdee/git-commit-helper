@@ -1,5 +1,4 @@
-# Git Commit Helper
-[![GitHub stars](https://img.shields.io/github/stars/newdee/git-commit-helper.svg?style=social)](https://github.com/newdee/git-commit-helper)
+# Git Commit Helper [![GitHub stars](https://img.shields.io/github/stars/newdee/git-commit-helper.svg?style=social)](https://github.com/newdee/git-commit-helper)
 
 ## Overview
 Git Commit Helper is a practical tool that leverages large language models (LLMs) to analyze changes in a Git repository. It helps users generate meaningful commit messages, addressing the difficulties users may encounter when writing commit messages. At the same time, it provides a user - friendly command - line interaction experience.
