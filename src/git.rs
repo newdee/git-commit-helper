@@ -33,9 +33,9 @@ use std::error::Error;
 ///
 /// let repo = Repository::discover(".").expect("Not a git repository");
 /// let diff = get_staged_diff(&repo);
-/// println!("{}", diff);
+/// println!("{:?}", diff);
 /// ```
-pub fn get_staged_diff(repo: &Repository) -> String {
+pub fn get_staged_diff(repo: &Repository) -> Option<String> {
     let index = repo.index().expect("Can't get index");
     let tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
     let mut diff_opts = DiffOptions::new();
@@ -48,9 +48,13 @@ pub fn get_staged_diff(repo: &Repository) -> String {
         true
     }) {
         eprintln!("failed to print diff: {}", e);
-        return String::from("None");
+        return None;
     }
-    String::from_utf8_lossy(&buf).to_string()
+    let result = String::from_utf8_lossy(&buf).to_string();
+    if result.trim().is_empty() {
+        return None;
+    }
+    Some(result)
 }
 
 /// Returns the messages of the most recent commits (up to 3).
@@ -73,21 +77,21 @@ pub fn get_staged_diff(repo: &Repository) -> String {
 ///
 /// let repo = Repository::discover(".").expect("Not a git repository");
 /// let messages = get_recent_commit_message(&repo);
-/// println!("{}", messages);
+/// println!("{:?}", messages);
 /// ```
-pub fn get_recent_commit_message(repo: &Repository) -> String {
-    let mut revwalk = repo.revwalk().expect("Failed to get revwalk");
-    if let Err(e) = revwalk.push_head() {
-        eprintln!("Warning: Cannot find HEAD. Possibly no commits yet: {}", e);
-        return String::from("None");
-    };
+pub fn get_recent_commit_message(repo: &Repository) -> Option<String> {
+    let mut revwalk = repo.revwalk().ok()?;
+    revwalk.push_head().ok()?;
     let commits: Vec<String> = revwalk
         .take(3)
         .filter_map(|oid| oid.ok())
         .filter_map(|oid| repo.find_commit(oid).ok())
         .map(|commit| commit.message().unwrap_or("").trim().replace('"', "\\\""))
         .collect();
-    commits.join("\n\n")
+    if commits.is_empty() {
+        return None;
+    }
+    Some(commits.join("\n\n"))
 }
 
 /// Commits the currently staged changes with the provided commit message.
