@@ -1,10 +1,10 @@
 [package]
 name = "git-commit-helper"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["coding@dfine.tech"]
 edition = "2024"
 repository = "https://github.com/newdee/git-commit-helper.git"
-description = "Git Commit Helper is a practical tool that leverages large language models (LLMs) to analyze changes in a Git repository. It helps users generate meaningful commit messages, addressing the difficulties users may encounter when writing commit messages. At the same time, it provides a user - friendly command - line interaction experience."
+description = "Git Commit Helper is a practical tool that leverages large language models (LLMs) to analyze changes in a Git repository. It helps users generate meaningful commit messages, addressing the difficulties users may encounter when writing commit messages. At the same time, it provides a user-friendly command - line interaction experience."
 license = "MIT"
 keywords = ["git", "commit"]
 categories = ["command-line-utilities" ]
@@ -17,6 +17,14 @@ async-openai = "0.28.1"
 clap = { version = "4.5.37", features = ["derive"] }
 git2 = "0.20.2"
 tokio = { version = "1.45.0", features = ["full"] }
+
+[lib]
+name = "git_commit_helper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "git-commit-helper"
+path = "src/main.rs"
 
 [profile.release]
 opt-level=3

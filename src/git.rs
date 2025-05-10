@@ -1,0 +1,143 @@
+// ************************************************************************** //
+//                                                                            //
+//                                                        :::      ::::::::   //
+//   git.rs                                             :+:      :+:    :+:   //
+//                                                    +:+ +:+         +:+     //
+//   By: dfine <coding@dfine.tech>                  +#+  +:+       +#+        //
+//                                                +#+#+#+#+#+   +#+           //
+//   Created: 2025/05/10 19:12:46 by dfine             #+#    #+#             //
+//   Updated: 2025/05/10 19:12:48 by dfine            ###   ########.fr       //
+//                                                                            //
+// ************************************************************************** //
+
+use git2::{DiffOptions, Repository};
+use std::error::Error;
+
+/// Returns the staged diff of the current Git repository (i.e., changes staged for commit).
+///
+/// This compares the staged index against the current `HEAD`.
+///
+/// # Arguments
+///
+/// * `repo` - A reference to an open `git2::Repository` instance.
+///
+/// # Returns
+///
+/// A `String` containing the unified diff. If the diff cannot be generated, it returns `"None"`.
+///
+/// # Example
+///
+/// ```
+/// use git_commit_helper::get_staged_diff;
+/// use git2::Repository;
+///
+/// let repo = Repository::discover(".").expect("Not a git repository");
+/// let diff = get_staged_diff(&repo);
+/// println!("{}", diff);
+/// ```
+pub fn get_staged_diff(repo: &Repository) -> String {
+    let index = repo.index().expect("Can't get index");
+    let tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
+    let mut diff_opts = DiffOptions::new();
+    let diff = repo
+        .diff_tree_to_index(tree.as_ref(), Some(&index), Some(&mut diff_opts))
+        .expect("Failed to generate diff");
+    let mut buf = Vec::new();
+    if let Err(e) = diff.print(git2::DiffFormat::Patch, |_d, _h, _l| {
+        buf.extend_from_slice(_l.content());
+        true
+    }) {
+        eprintln!("failed to print diff: {}", e);
+        return String::from("None");
+    }
+    String::from_utf8_lossy(&buf).to_string()
+}
+
+/// Returns the messages of the most recent commits (up to 3).
+///
+/// Useful for providing context to an LLM or for generating summaries.
+///
+/// # Arguments
+///
+/// * `repo` - A reference to an open `git2::Repository` instance.
+///
+/// # Returns
+///
+/// A newline-separated string of the latest commit messages. If no commits exist, returns `"None"`.
+///
+/// # Example
+///
+/// ```
+/// use git_commit_helper::get_recent_commit_message;
+/// use git2::Repository;
+///
+/// let repo = Repository::discover(".").expect("Not a git repository");
+/// let messages = get_recent_commit_message(&repo);
+/// println!("{}", messages);
+/// ```
+pub fn get_recent_commit_message(repo: &Repository) -> String {
+    let mut revwalk = repo.revwalk().expect("Failed to get revwalk");
+    if let Err(e) = revwalk.push_head() {
+        eprintln!("Warning: Cannot find HEAD. Possibly no commits yet: {}", e);
+        return String::from("None");
+    };
+    let commits: Vec<String> = revwalk
+        .take(3)
+        .filter_map(|oid| oid.ok())
+        .filter_map(|oid| repo.find_commit(oid).ok())
+        .map(|commit| commit.message().unwrap_or("").trim().replace('"', "\\\""))
+        .collect();
+    commits.join("\n\n")
+}
+
+/// Commits the currently staged changes with the provided commit message.
+///
+/// This function handles both initial and regular commits, constructing the commit tree
+/// and linking to the correct parent if available.
+///
+/// # Arguments
+///
+/// * `repo` - A reference to an open `git2::Repository` instance.
+/// * `message` - The commit message to use.
+///
+/// # Errors
+///
+/// Returns a boxed `Error` if Git operations (e.g., getting the index, writing tree, or committing) fail.
+///
+/// # Example
+///
+/// ```
+/// use git_commit_helper::commit_with_git;
+/// use git2::Repository;
+///
+/// let repo = Repository::discover(".").expect("Not a git repository");
+/// let message = "Add README and initial setup";
+/// if let Err(err) = commit_with_git(&repo, message) {
+///     eprintln!("Commit failed: {}", err);
+/// }
+/// ```
+pub fn commit_with_git(repo: &Repository, message: &str) -> Result<(), Box<dyn Error>> {
+    let sig = repo.signature()?;
+
+    let tree_oid = {
+        let mut index = repo.index()?;
+        let oid = index.write_tree()?;
+        repo.find_tree(oid)?
+    };
+
+    let head = repo.head().ok();
+    let parent_commit = head
+        .as_ref()
+        .and_then(|h| h.target())
+        .and_then(|oid| repo.find_commit(oid).ok());
+
+    let tree = repo.find_tree(tree_oid.id())?;
+
+    let commit_oid = match parent_commit {
+        Some(parent) => repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])?,
+        None => repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])?,
+    };
+
+    println!("✅ Commit created: {}", commit_oid);
+    Ok(())
+}
