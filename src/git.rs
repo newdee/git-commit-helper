@@ -6,7 +6,7 @@
 //   By: dfine <coding@dfine.tech>                  +#+  +:+       +#+        //
 //                                                +#+#+#+#+#+   +#+           //
 //   Created: 2025/05/10 19:12:46 by dfine             #+#    #+#             //
-//   Updated: 2025/05/10 19:12:48 by dfine            ###   ########.fr       //
+//   Updated: 2025/05/11 00:38:48 by dfine            ###   ########.fr       //
 //                                                                            //
 // ************************************************************************** //
 
@@ -36,12 +36,12 @@ use std::error::Error;
 /// println!("{:?}", diff);
 /// ```
 pub fn get_staged_diff(repo: &Repository) -> Option<String> {
-    let index = repo.index().expect("Can't get index");
+    let index = repo.index().ok()?;
     let tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
     let mut diff_opts = DiffOptions::new();
     let diff = repo
         .diff_tree_to_index(tree.as_ref(), Some(&index), Some(&mut diff_opts))
-        .expect("Failed to generate diff");
+        .ok()?;
     let mut buf = Vec::new();
     if let Err(e) = diff.print(git2::DiffFormat::Patch, |_d, _h, _l| {
         buf.extend_from_slice(_l.content());
