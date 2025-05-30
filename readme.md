@@ -16,12 +16,28 @@ cargo install git-commit-helper
 ```
 
 ## Usage
-- Set `OPENAI_BASE_URL`(Optional),`OPENAI_API_KEY`(Required) in your environment.
-- Use this command after your `git add` command.
+
+This tool supports **either OpenAI or Ollama** as the language model provider.  
+**Configure only one provider at a time.**
+
+### Environment Variables
+
+- **For OpenAI**:
+  - `OPENAI_API_KEY` (**Required**)
+  - `OPENAI_BASE_URL` (*Optional*, defaults to OpenAI's official endpoint)
+
+- **For Ollama**:
+  - `OLLAMA_BASE_URL` (*Optional*, defaults to `http://localhost:11434`)
+
+### Example Command
+
+Use this tool after running `git add`:
+
 ```
 Usage: git-commit-helper [OPTIONS]
 
 Options:
+  -p, --provider <PROVIDER>    [default: openai]
   -m, --model <MODEL>          [default: gpt-4o]
       --max-token <MAX_TOKEN>  [default: 2048]
   -h, --help                   Print help

@@ -10,7 +10,9 @@
 //                                                                            //
 // ************************************************************************** //
 
-use git_commit_helper::{call_openai, commit_with_git, get_recent_commit_message, get_staged_diff};
+use git_commit_helper::{
+    commit_with_git, get_recent_commit_message, get_staged_diff, llm::call_llm,
+};
 use git2::Repository;
 use std::error::Error;
 
@@ -49,6 +51,9 @@ fn prompt_user_action() -> Result<UserChoice, Box<dyn Error>> {
 #[derive(Parser, Debug)]
 #[command(version, about, long_about=None)]
 struct Args {
+    #[arg(short, long, default_value_t = String::from("openai"))]
+    provider: String,
+
     #[arg(short, long, default_value_t = String::from("gpt-4o"))]
     model: String,
     //#[arg(short, long, default_value_t = 3)]
@@ -79,7 +84,7 @@ async fn main() {
         .replace("{recent_commits}", &commits)
         .replace("{diff_context}", &diff);
     loop {
-        match call_openai(&prompt, &args.model, args.max_token).await {
+        match call_llm(&args.provider, &prompt, &args.model, args.max_token).await {
             Ok(commit_msg) => {
                 print_commit_msg(&commit_msg);
                 match prompt_user_action() {

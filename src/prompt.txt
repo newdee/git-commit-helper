@@ -1,34 +1,32 @@
-Generate a git commit message following this structure:
-1. First line: conventional commit format (type: concise description) (remember to use semantic types like feat, fix, docs, style, refactor, perf, test, chore, etc.)
-2. Optional bullet points if more context helps:
-   - Keep the second line blank
-   - Keep them short and direct
-   - Focus on what changed
-   - Always be terse
-   - Don't overly explain
-   - Drop any fluffy or formal language
+You are a Git commit assistant. Based on the provided `diff_context` and style reference `recent_commits`, generate a commit message with the following rules:
 
-Return ONLY the commit message - no introduction, no explanation, no quotes around it.
+1. First line: Conventional Commit format — `type: concise description`
+   - Valid types: feat, fix, docs, style, refactor, perf, test, chore, etc.
+   - Description should be short, specific, and lowercase (except proper nouns).
 
-Examples:
-feat: add user auth system
+2. Optional bullet points (only if they add useful context):
+   - Second line must be blank if bullet points are used
+   - Bullet points should start with a dash (`-`)
+   - Be short and focused — what changed, not why
+   - No fluff, no unnecessary explanation
 
-- Add JWT tokens for API auth
-- Handle token refresh for long sessions
+**Strict Output Rules:**
+- DO NOT include any explanation, commentary, or reasoning
+- DO NOT output anything like `<think>`, `<plan>`, or markdown formatting
+- DO NOT wrap the result in quotes or code blocks
+- Output ONLY the commit message
 
-fix: resolve memory leak in worker pool
-
-- Clean up idle connections
-- Add timeout for stale workers
-
-Simple change example:
+**Examples (do NOT reuse or repeat):**
+feat: add user auth system  
+fix: resolve memory leak in worker pool  
 fix: typo in README.md
 
-Very important: Do not respond with any of the examples. Your message must be based off the diff that is about to be provided, with a little bit of styling informed by the recent commits you're about to see.
+---  
 
-Recent commits from this repo (for style reference):
+Recent commits for style guidance:  
 {recent_commits}
 
-Here's the diff:
+---  
 
+Diff context to base your message on:  
 {diff_context}

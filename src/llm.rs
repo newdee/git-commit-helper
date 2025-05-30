@@ -15,6 +15,7 @@ use async_openai::{
     config::OpenAIConfig,
     types::{ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs},
 };
+use ollama_rs::{IntoUrlSealed, Ollama, generation::completion::request::GenerationRequest};
 use std::error::Error;
 
 /// Sends a prompt to the OpenAI chat API and returns the generated response as a string.
@@ -78,4 +79,31 @@ pub async fn call_openai(
         .first()
         .and_then(|c| c.message.content.clone())
         .unwrap_or_default())
+}
+
+pub async fn call_ollama(
+    prompt: &str,
+    model: &str,
+    _max_token: u32,
+) -> Result<String, Box<dyn Error>> {
+    let base_url =
+        std::env::var("OLLAMA_BASE_URL").unwrap_or_else(|_| "http://localhost:11434".to_string());
+    let url = base_url.into_url()?;
+    let client = Ollama::from_url(url);
+    let request = client
+        .generate(GenerationRequest::new(model.to_string(), prompt))
+        .await?;
+    Ok(request.response)
+}
+
+pub async fn call_llm(
+    provider: &str,
+    prompt: &str,
+    model: &str,
+    max_token: u32,
+) -> Result<String, Box<dyn Error>> {
+    match provider {
+        "ollama" => call_ollama(prompt, model, max_token).await,
+        _ => call_openai(prompt, model, max_token).await,
+    }
 }
