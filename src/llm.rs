@@ -81,6 +81,25 @@ pub async fn call_openai(
         .unwrap_or_default())
 }
 
+/// Sends a prompt to the Ollama API and returns the generated response as a string.
+///
+/// This function uses the `ollama_rs` crate to interact with Ollama's generation endpoint.
+/// The base URL can be overridden via the `OLLAMA_BASE_URL` environment variable.
+///
+/// # Arguments
+///
+/// * `prompt` - The text prompt to send to the model.
+/// * `model` - The model ID to use for the request.
+/// * `_max_token` - Currently unused parameter (to maintain function signature consistency).
+///
+/// # Returns
+///
+/// A `Result` containing the generated string response on success, or an error on failure.
+///
+/// # Errors
+///
+/// This function will return an error if the request fails, the environment variable
+/// is misconfigured, or if the response cannot be handled correctly.
 pub async fn call_ollama(
     prompt: &str,
     model: &str,
