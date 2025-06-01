@@ -1,6 +1,6 @@
 [package]
 name = "git-commit-helper"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["coding@dfine.tech"]
 edition = "2024"
 repository = "https://github.com/newdee/git-commit-helper.git"

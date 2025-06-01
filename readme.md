@@ -37,11 +37,13 @@ Use this tool after running `git add`:
 Usage: git-commit-helper [OPTIONS]
 
 Options:
-  -p, --provider <PROVIDER>    [default: openai]
-  -m, --model <MODEL>          [default: gpt-4o]
-      --max-token <MAX_TOKEN>  [default: 2048]
-  -h, --help                   Print help
-  -V, --version                Print version
+  -p, --provider <PROVIDER>      [default: openai]
+  -m, --model <MODEL>            [default: gpt-4o]
+      --gpgsign
+      --gpgsignkey <GPGSIGNKEY>  [default: ]
+      --max-token <MAX_TOKEN>    [default: 2048]
+  -h, --help                     Print help
+  -V, --version                  Print version
 ```
 
 ## License
