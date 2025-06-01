@@ -11,7 +11,11 @@
 // ************************************************************************** //
 
 use git2::{DiffOptions, Repository};
-use std::error::Error;
+use std::{
+    error::Error,
+    io::Write,
+    process::{Command, Stdio},
+};
 
 /// Returns the staged diff of the current Git repository (i.e., changes staged for commit).
 ///
@@ -94,6 +98,29 @@ pub fn get_recent_commit_message(repo: &Repository) -> Option<String> {
     Some(commits.join("\n\n"))
 }
 
+pub fn gpg_sign(data: &[u8], key: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    let mut cmd = Command::new("gpg");
+    cmd.args(["--armor", "--detach-sign"]);
+
+    if let Some(k) = key {
+        cmd.args(["--local-user", k]);
+    }
+
+    let mut child = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
+    child.stdin.as_mut().unwrap().write_all(data)?;
+    let output = child.wait_with_output()?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "GPG signing failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    Ok(String::from_utf8(output.stdout)?)
+}
+
 /// Commits the currently staged changes with the provided commit message.
 ///
 /// This function handles both initial and regular commits, constructing the commit tree
@@ -120,7 +147,12 @@ pub fn get_recent_commit_message(repo: &Repository) -> Option<String> {
 ///     eprintln!("Commit failed: {}", err);
 /// }
 /// ```
-pub fn commit_with_git(repo: &Repository, message: &str) -> Result<(), Box<dyn Error>> {
+pub fn commit_with_git(
+    repo: &Repository,
+    message: &str,
+    gpgsign: bool,
+    signkey: Option<&str>,
+) -> Result<(), Box<dyn Error>> {
     let sig = repo.signature()?;
 
     let tree_oid = {
@@ -134,12 +166,16 @@ pub fn commit_with_git(repo: &Repository, message: &str) -> Result<(), Box<dyn E
         .as_ref()
         .and_then(|h| h.target())
         .and_then(|oid| repo.find_commit(oid).ok());
+    let parents = parent_commit.iter().collect::<Vec<_>>();
 
     let tree = repo.find_tree(tree_oid.id())?;
+    let buf = repo.commit_create_buffer(&sig, &sig, message, &tree, &parents)?;
 
-    let commit_oid = match parent_commit {
-        Some(parent) => repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])?,
-        None => repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])?,
+    let commit_oid = if gpgsign {
+        let signature = gpg_sign(&buf, signkey);
+        repo.commit_signed(buf.as_str().unwrap(), signature.unwrap().as_str(), None)?
+    } else {
+        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?
     };
 
     println!("✅ Commit created: {}", commit_oid);

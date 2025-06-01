@@ -56,6 +56,12 @@ struct Args {
 
     #[arg(short, long, default_value_t = String::from("gpt-4o"))]
     model: String,
+
+    #[arg(long, default_value_t = false)]
+    gpgsign: bool,
+
+    #[arg(long, default_value_t = String::new())]
+    gpgsignkey: String,
     //#[arg(short, long, default_value_t = 3)]
     //count: u8,
     #[arg(long, default_value_t = 2048_u32)]
@@ -79,6 +85,7 @@ async fn main() {
         eprintln!("⚠️  No staged changes found – nothing to commit.");
         std::process::exit(0);
     });
+    let signkey = (!args.gpgsignkey.is_empty()).then_some(args.gpgsignkey.as_str());
     let commits = get_recent_commit_message(&repo).unwrap_or("None".to_string());
     let prompt = PROMPT_TEMPLATE
         .replace("{recent_commits}", &commits)
@@ -93,7 +100,7 @@ async fn main() {
                         break;
                     }
                     Ok(UserChoice::Commit) => {
-                        if let Err(e) = commit_with_git(&repo, &commit_msg) {
+                        if let Err(e) = commit_with_git(&repo, &commit_msg, args.gpgsign, signkey) {
                             eprintln!("❌ Commit failed: {}", e);
                         }
                         break;
