@@ -182,7 +182,7 @@ pub fn commit_with_git(
     // let commit = repo.find_commit(commit_oid)?;
     // repo.branch(head.unwrap().shorthand().unwrap(), &commit, false)?;
     repo.reference(
-        head.unwrap().shorthand().unwrap(),
+        head.unwrap().name().unwrap(),
         commit_oid,
         true,
         "update main",
