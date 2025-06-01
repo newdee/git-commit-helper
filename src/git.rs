@@ -171,12 +171,22 @@ pub fn commit_with_git(
     let tree = repo.find_tree(tree_oid.id())?;
     let buf = repo.commit_create_buffer(&sig, &sig, message, &tree, &parents)?;
 
-    let commit_oid = if gpgsign {
-        let signature = gpg_sign(&buf, signkey);
-        repo.commit_signed(buf.as_str().unwrap(), signature.unwrap().as_str(), None)?
-    } else {
-        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?
-    };
+    if !gpgsign {
+        let commit_oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
+        println!("✅ Commit created: {}", commit_oid);
+        return Ok(());
+    }
+    let signature = gpg_sign(&buf, signkey);
+    let commit_oid =
+        repo.commit_signed(buf.as_str().unwrap(), signature.unwrap().as_str(), None)?;
+    // let commit = repo.find_commit(commit_oid)?;
+    // repo.branch(head.unwrap().shorthand().unwrap(), &commit, false)?;
+    repo.reference(
+        head.unwrap().shorthand().unwrap(),
+        commit_oid,
+        true,
+        "update main",
+    )?;
 
     println!("✅ Commit created: {}", commit_oid);
     Ok(())
