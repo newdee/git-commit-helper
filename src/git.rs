@@ -185,7 +185,7 @@ pub fn commit_with_git(
         head.unwrap().name().unwrap(),
         commit_oid,
         true,
-        "update main",
+        "update ref",
     )?;
 
     println!("✅ Commit created: {}", commit_oid);
