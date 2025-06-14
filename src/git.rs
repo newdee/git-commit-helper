@@ -181,8 +181,10 @@ pub fn commit_with_git(
         repo.commit_signed(buf.as_str().unwrap(), signature.unwrap().as_str(), None)?;
     // let commit = repo.find_commit(commit_oid)?;
     // repo.branch(head.unwrap().shorthand().unwrap(), &commit, false)?;
+
     repo.reference(
-        head.unwrap().name().unwrap(),
+        head.unwrap().symbolic_target().unwrap(),
+        // head.unwrap().name().unwrap(),
         commit_oid,
         true,
         "update ref",
