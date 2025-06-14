@@ -182,8 +182,10 @@ pub fn commit_with_git(
     // let commit = repo.find_commit(commit_oid)?;
     // repo.branch(head.unwrap().shorthand().unwrap(), &commit, false)?;
 
+    let head_ref = repo.find_reference("HEAD")?;
+
     repo.reference(
-        head.unwrap().symbolic_target().unwrap(),
+        head_ref.symbolic_target().unwrap(),
         // head.unwrap().name().unwrap(),
         commit_oid,
         true,
