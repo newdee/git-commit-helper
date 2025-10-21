@@ -42,6 +42,7 @@ Options:
       --gpgsign
       --gpgsignkey <GPGSIGNKEY>  [default: ]
       --max-token <MAX_TOKEN>    [default: 2048]
+      --chunk-size <CHUNK_SIZE>  [default: 200000]
   -h, --help                     Print help
   -V, --version                  Print version
 ```
