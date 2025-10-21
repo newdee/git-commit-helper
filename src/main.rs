@@ -19,6 +19,7 @@ use std::error::Error;
 use clap::{Parser, arg};
 
 static PROMPT_TEMPLATE: &str = include_str!("prompt.txt");
+static CHUNK_PROMPT_TEMPLATE: &str = include_str!("prompt_chunked.txt");
 
 enum UserChoice {
     Commit,
@@ -66,15 +67,48 @@ struct Args {
     //count: u8,
     #[arg(long, default_value_t = 2048_u32)]
     max_token: u32,
+
+    #[arg(long, default_value_t = 200000_usize)]
+    chunk_size: usize,
 }
 
 fn print_commit_msg(commit_msg: &str) {
     // blue
     println!("\x1b[34m================ COMMIT MESSAGE ================\x1b[0m");
     // green
-    println!("\x1b[32m{}\x1b[0m", commit_msg);
+    println!("\x1b[32m{commit_msg}\x1b[0m");
     // blue
     println!("\x1b[34m================================================\x1b[0m");
+}
+
+async fn summarize_diff_in_chunks(diff: &str, args: &Args) -> Result<String, Box<dyn Error>> {
+    let mut chunks = Vec::new();
+    let mut start = 0;
+    while start < diff.len() {
+        let end = (start + args.chunk_size).min(diff.len());
+        chunks.push(&diff[start..end]);
+        start = end;
+    }
+
+    let mut part_summaries = Vec::new();
+    for (i, chunk) in chunks.iter().enumerate() {
+        let prompt = format!(
+            "You are a code change summarization assistant. Summarize the main goal and impact of the following code changes in a concise sentence:\n\nPart {} of the diff:\n{}\n\nSummary:",
+            i + 1,
+            chunk
+        );
+
+        match call_llm(&args.provider, &prompt, &args.model, args.max_token).await {
+            Ok(summary) => {
+                // println!("summary {i}: {summary}");
+                part_summaries.push(summary.trim().to_string())
+            }
+            Err(e) => eprintln!("⚠️ summarizing chunk {} failed: {}", i + 1, e),
+        }
+    }
+    let combined_summary = part_summaries.join("\n");
+    // println!("{combined_summary}");
+    Ok(combined_summary)
 }
 
 #[tokio::main]
@@ -87,9 +121,26 @@ async fn main() {
     });
     let signkey = (!args.gpgsignkey.is_empty()).then_some(args.gpgsignkey.as_str());
     let commits = get_recent_commit_message(&repo).unwrap_or("None".to_string());
-    let prompt = PROMPT_TEMPLATE
-        .replace("{recent_commits}", &commits)
-        .replace("{diff_context}", &diff);
+    let prompt = if diff.len() > args.chunk_size {
+        println!(
+            "Diff context is too large: {}, need to summarize",
+            diff.len()
+        );
+        let summary = match summarize_diff_in_chunks(&diff, &args).await {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Error summarizing diff: {e}");
+                std::process::exit(0);
+            }
+        };
+        CHUNK_PROMPT_TEMPLATE
+            .replace("{recent_commits}", &commits)
+            .replace("{diff_context}", &summary)
+    } else {
+        PROMPT_TEMPLATE
+            .replace("{recent_commits}", &commits)
+            .replace("{diff_context}", &diff)
+    };
     loop {
         match call_llm(&args.provider, &prompt, &args.model, args.max_token).await {
             Ok(commit_msg) => {
@@ -101,7 +152,7 @@ async fn main() {
                     }
                     Ok(UserChoice::Commit) => {
                         if let Err(e) = commit_with_git(&repo, &commit_msg, args.gpgsign, signkey) {
-                            eprintln!("❌ Commit failed: {}", e);
+                            eprintln!("❌ Commit failed: {e}");
                         }
                         break;
                     }
@@ -110,12 +161,12 @@ async fn main() {
                         continue;
                     }
                     Err(e) => {
-                        eprintln!("❌ Input error: {}", e);
+                        eprintln!("❌ Input error: {e}");
                         break;
                     }
                 }
             }
-            Err(e) => eprintln!("generate failed: {}", e),
+            Err(e) => eprintln!("generate failed: {e}"),
         }
     }
 }

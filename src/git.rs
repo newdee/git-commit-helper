@@ -51,7 +51,7 @@ pub fn get_staged_diff(repo: &Repository) -> Option<String> {
         buf.extend_from_slice(_l.content());
         true
     }) {
-        eprintln!("failed to print diff: {}", e);
+        eprintln!("failed to print diff: {e}");
         return None;
     }
     let result = String::from_utf8_lossy(&buf).to_string();
@@ -144,7 +144,7 @@ pub fn gpg_sign(data: &[u8], key: Option<&str>) -> Result<String, Box<dyn std::e
 /// let repo = Repository::discover(".").expect("Not a git repository");
 /// let message = "Add README and initial setup";
 /// if let Err(err) = commit_with_git(&repo, message) {
-///     eprintln!("Commit failed: {}", err);
+///     eprintln!("Commit failed: {err}");
 /// }
 /// ```
 pub fn commit_with_git(
@@ -173,7 +173,7 @@ pub fn commit_with_git(
 
     if !gpgsign {
         let commit_oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents)?;
-        println!("✅ Commit created: {}", commit_oid);
+        println!("✅ Commit created: {commit_oid}");
         return Ok(());
     }
     let signature = gpg_sign(&buf, signkey);
@@ -192,6 +192,6 @@ pub fn commit_with_git(
         "update ref",
     )?;
 
-    println!("✅ Commit created: {}", commit_oid);
+    println!("✅ Commit created: {commit_oid}");
     Ok(())
 }
