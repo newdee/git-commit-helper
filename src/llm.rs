@@ -16,6 +16,7 @@ use async_openai::{
     types::{ChatCompletionRequestUserMessageArgs, CreateChatCompletionRequestArgs},
 };
 use ollama_rs::{IntoUrlSealed, Ollama, generation::completion::request::GenerationRequest};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 
 /// Sends a prompt to the OpenAI chat API and returns the generated response as a string.
@@ -115,6 +116,92 @@ pub async fn call_ollama(
     Ok(request.response)
 }
 
+#[derive(Serialize)]
+struct AnthropicMessage<'a> {
+    role: &'a str,
+    content: &'a str,
+}
+
+#[derive(Serialize)]
+struct AnthropicRequest<'a> {
+    model: &'a str,
+    max_tokens: u32,
+    messages: Vec<AnthropicMessage<'a>>,
+}
+
+#[derive(Deserialize)]
+struct AnthropicContentBlock {
+    #[serde(rename = "type")]
+    block_type: String,
+    #[serde(default)]
+    text: String,
+}
+
+#[derive(Deserialize)]
+struct AnthropicResponse {
+    content: Vec<AnthropicContentBlock>,
+}
+
+/// Sends a prompt to the Anthropic Messages API and returns the generated response as a string.
+///
+/// This calls the `/v1/messages` endpoint directly over HTTP (there is no official Anthropic
+/// Rust SDK). The API key is read from `ANTHROPIC_API_KEY` and the base URL can be overridden
+/// via `ANTHROPIC_BASE_URL` (defaults to `https://api.anthropic.com/v1`).
+///
+/// # Arguments
+///
+/// * `prompt` - The text prompt to send to the model.
+/// * `model` - The model ID to use (e.g., `"claude-opus-4-8"`).
+/// * `max_token` - Maximum number of tokens allowed in the response.
+///
+/// # Errors
+///
+/// Returns an error if `ANTHROPIC_API_KEY` is unset, the request fails, the API returns a
+/// non-success status, or the response cannot be parsed.
+pub async fn call_anthropic(
+    prompt: &str,
+    model: &str,
+    max_token: u32,
+) -> Result<String, Box<dyn Error>> {
+    let api_key = std::env::var("ANTHROPIC_API_KEY")
+        .map_err(|_| "ANTHROPIC_API_KEY is not set")?;
+    let base_url = std::env::var("ANTHROPIC_BASE_URL")
+        .unwrap_or_else(|_| "https://api.anthropic.com/v1".to_string());
+    let url = format!("{}/messages", base_url.trim_end_matches('/'));
+
+    let request = AnthropicRequest {
+        model,
+        max_tokens: max_token,
+        messages: vec![AnthropicMessage {
+            role: "user",
+            content: prompt,
+        }],
+    };
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&request)
+        .send()
+        .await?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Anthropic API error ({status}): {body}").into());
+    }
+
+    let parsed: AnthropicResponse = response.json().await?;
+    Ok(parsed
+        .content
+        .into_iter()
+        .find(|b| b.block_type == "text")
+        .map(|b| b.text)
+        .unwrap_or_default())
+}
+
 pub async fn call_llm(
     provider: &str,
     prompt: &str,
@@ -123,6 +210,7 @@ pub async fn call_llm(
 ) -> Result<String, Box<dyn Error>> {
     match provider {
         "ollama" => call_ollama(prompt, model, max_token).await,
+        "anthropic" => call_anthropic(prompt, model, max_token).await,
         _ => call_openai(prompt, model, max_token).await,
     }
 }

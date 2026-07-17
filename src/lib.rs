@@ -13,11 +13,11 @@
 //! # git-commit-helper
 //!
 /// `git-commit-helper` is a library designed to simplify the process of generating high-quality
-/// Git commit messages using large language models like OpenAI's GPT.
+/// Git commit messages using large language models.
 ///
 /// It provides tools to:
 /// - Extract staged diffs and recent commit messages from a Git repository
-/// - Generate commit messages via OpenAI chat completion APIs
+/// - Generate commit messages via OpenAI, Anthropic, or Ollama APIs
 /// - Automatically create commits with the generated messages
 ///
 /// ## Example use cases
@@ -28,4 +28,4 @@ pub mod llm;
 
 /// Re-exports for convenient use in consumers of the library
 pub use git::{commit_with_git, get_recent_commit_message, get_staged_diff};
-pub use llm::call_openai;
+pub use llm::{call_anthropic, call_llm, call_ollama, call_openai};

@@ -27,7 +27,12 @@ use std::{
 ///
 /// # Returns
 ///
-/// A `String` containing the unified diff. If the diff cannot be generated, it returns `"None"`.
+/// * `Ok(Some(diff))` - the unified diff of the staged changes.
+/// * `Ok(None)` - there are no staged changes.
+/// * `Err(_)` - a Git operation failed while computing the diff.
+///
+/// Distinguishing `Ok(None)` from `Err` lets callers tell "nothing to commit" apart
+/// from a genuine failure, instead of collapsing both into a missing value.
 ///
 /// # Example
 ///
@@ -39,26 +44,21 @@ use std::{
 /// let diff = get_staged_diff(&repo);
 /// println!("{:?}", diff);
 /// ```
-pub fn get_staged_diff(repo: &Repository) -> Option<String> {
-    let index = repo.index().ok()?;
+pub fn get_staged_diff(repo: &Repository) -> Result<Option<String>, Box<dyn Error>> {
+    let index = repo.index()?;
     let tree = repo.head().ok().and_then(|head| head.peel_to_tree().ok());
     let mut diff_opts = DiffOptions::new();
-    let diff = repo
-        .diff_tree_to_index(tree.as_ref(), Some(&index), Some(&mut diff_opts))
-        .ok()?;
+    let diff = repo.diff_tree_to_index(tree.as_ref(), Some(&index), Some(&mut diff_opts))?;
     let mut buf = Vec::new();
-    if let Err(e) = diff.print(git2::DiffFormat::Patch, |_d, _h, _l| {
-        buf.extend_from_slice(_l.content());
+    diff.print(git2::DiffFormat::Patch, |_d, _h, line| {
+        buf.extend_from_slice(line.content());
         true
-    }) {
-        eprintln!("failed to print diff: {e}");
-        return None;
-    }
+    })?;
     let result = String::from_utf8_lossy(&buf).to_string();
     if result.trim().is_empty() {
-        return None;
+        return Ok(None);
     }
-    Some(result)
+    Ok(Some(result))
 }
 
 /// Returns the messages of the most recent commits (up to 3).
@@ -130,20 +130,23 @@ pub fn gpg_sign(data: &[u8], key: Option<&str>) -> Result<String, Box<dyn std::e
 ///
 /// * `repo` - A reference to an open `git2::Repository` instance.
 /// * `message` - The commit message to use.
+/// * `gpgsign` - Whether to GPG-sign the commit.
+/// * `signkey` - Optional GPG key ID to sign with (only used when `gpgsign` is true).
 ///
 /// # Errors
 ///
-/// Returns a boxed `Error` if Git operations (e.g., getting the index, writing tree, or committing) fail.
+/// Returns a boxed `Error` if Git operations (e.g., getting the index, writing tree, or
+/// committing) fail, or if GPG signing fails when requested.
 ///
 /// # Example
 ///
-/// ```
+/// ```no_run
 /// use git_commit_helper::commit_with_git;
 /// use git2::Repository;
 ///
 /// let repo = Repository::discover(".").expect("Not a git repository");
 /// let message = "Add README and initial setup";
-/// if let Err(err) = commit_with_git(&repo, message) {
+/// if let Err(err) = commit_with_git(&repo, message, false, None) {
 ///     eprintln!("Commit failed: {err}");
 /// }
 /// ```
@@ -176,21 +179,17 @@ pub fn commit_with_git(
         println!("✅ Commit created: {commit_oid}");
         return Ok(());
     }
-    let signature = gpg_sign(&buf, signkey);
-    let commit_oid =
-        repo.commit_signed(buf.as_str().unwrap(), signature.unwrap().as_str(), None)?;
-    // let commit = repo.find_commit(commit_oid)?;
-    // repo.branch(head.unwrap().shorthand().unwrap(), &commit, false)?;
+    let buf_str = buf
+        .as_str()
+        .ok_or("commit buffer is not valid UTF-8")?;
+    let signature = gpg_sign(&buf, signkey)?;
+    let commit_oid = repo.commit_signed(buf_str, signature.as_str(), None)?;
 
     let head_ref = repo.find_reference("HEAD")?;
-
-    repo.reference(
-        head_ref.symbolic_target().unwrap(),
-        // head.unwrap().name().unwrap(),
-        commit_oid,
-        true,
-        "update ref",
-    )?;
+    let target = head_ref
+        .symbolic_target()
+        .ok_or("HEAD is detached; cannot update a symbolic reference")?;
+    repo.reference(target, commit_oid, true, "update ref")?;
 
     println!("✅ Commit created: {commit_oid}");
     Ok(())

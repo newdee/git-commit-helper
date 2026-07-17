@@ -16,7 +16,7 @@ use git_commit_helper::{
 use git2::Repository;
 use std::error::Error;
 
-use clap::{Parser, arg};
+use clap::Parser;
 
 static PROMPT_TEMPLATE: &str = include_str!("prompt.txt");
 static CHUNK_PROMPT_TEMPLATE: &str = include_str!("prompt_chunked.txt");
@@ -55,8 +55,10 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("openai"))]
     provider: String,
 
-    #[arg(short, long, default_value_t = String::from("gpt-4o"))]
-    model: String,
+    /// Model ID. Defaults per provider when omitted
+    /// (openai: gpt-4o, anthropic: claude-opus-4-8, ollama: llama3.2).
+    #[arg(short, long)]
+    model: Option<String>,
 
     #[arg(long, default_value_t = false)]
     gpgsign: bool,
@@ -72,6 +74,14 @@ struct Args {
     chunk_size: usize,
 }
 
+fn default_model(provider: &str) -> &'static str {
+    match provider {
+        "anthropic" => "claude-opus-4-8",
+        "ollama" => "llama3.2",
+        _ => "gpt-4o",
+    }
+}
+
 fn print_commit_msg(commit_msg: &str) {
     // blue
     println!("\x1b[34m================ COMMIT MESSAGE ================\x1b[0m");
@@ -81,56 +91,152 @@ fn print_commit_msg(commit_msg: &str) {
     println!("\x1b[34m================================================\x1b[0m");
 }
 
-async fn summarize_diff_in_chunks(diff: &str, args: &Args) -> Result<String, Box<dyn Error>> {
-    let mut chunks = Vec::new();
-    let mut start = 0;
-    while start < diff.len() {
-        let end = (start + args.chunk_size).min(diff.len());
-        chunks.push(&diff[start..end]);
-        start = end;
+/// Returns the byte offsets at which each file section (`diff --git ...`) begins,
+/// plus a trailing sentinel equal to `diff.len()`. File `k` spans `bounds[k]..bounds[k+1]`.
+/// Offsets are always valid UTF-8 char boundaries (the marker is ASCII).
+fn file_bounds(diff: &str) -> Vec<usize> {
+    let marker = "diff --git ";
+    let mut bounds = Vec::new();
+    if diff.starts_with(marker) {
+        bounds.push(0);
     }
+    bounds.extend(
+        diff.match_indices(&format!("\n{marker}"))
+            .map(|(i, _)| i + 1),
+    );
+    if bounds.is_empty() {
+        // No recognizable file markers: treat the whole diff as one section.
+        bounds.push(0);
+    }
+    bounds.push(diff.len());
+    bounds
+}
 
-    let mut part_summaries = Vec::new();
-    for (i, chunk) in chunks.iter().enumerate() {
+/// Splits a diff into chunks no larger than `chunk_size` bytes. Consecutive whole files
+/// are packed into the same chunk to keep the chunk count (and thus the number of LLM
+/// calls) minimal. A single file larger than `chunk_size` is split on UTF-8 char
+/// boundaries (never mid-character, which would panic).
+fn split_diff(diff: &str, chunk_size: usize) -> Vec<&str> {
+    let bounds = file_bounds(diff);
+    let file_count = bounds.len() - 1;
+    let mut chunks = Vec::new();
+    let mut i = 0;
+    while i < file_count {
+        let start = bounds[i];
+        // Greedily pack whole files while they fit; always take at least one file.
+        let mut j = i + 1;
+        while j < file_count && bounds[j + 1] - start <= chunk_size {
+            j += 1;
+        }
+        let end = bounds[j];
+
+        if j == i + 1 && end - start > chunk_size {
+            // A single file exceeds chunk_size: sub-split it on char boundaries.
+            let mut s = start;
+            while s < end {
+                let mut e = (s + chunk_size).min(end);
+                while e < end && !diff.is_char_boundary(e) {
+                    e -= 1;
+                }
+                if e <= s {
+                    // No progress (multibyte char at `s`, tiny chunk_size): step forward.
+                    e = s + 1;
+                    while e < end && !diff.is_char_boundary(e) {
+                        e += 1;
+                    }
+                }
+                chunks.push(&diff[s..e]);
+                s = e;
+            }
+        } else {
+            chunks.push(&diff[start..end]);
+        }
+        i = j;
+    }
+    chunks
+}
+
+async fn summarize_diff_in_chunks(
+    diff: &str,
+    provider: &str,
+    model: &str,
+    max_token: u32,
+    chunk_size: usize,
+) -> Result<String, Box<dyn Error>> {
+    use futures::stream::StreamExt;
+    // Cap in-flight requests so a diff that splits into many chunks doesn't fan out
+    // into an unbounded burst of concurrent API calls (rate limits, cost).
+    const MAX_CONCURRENT: usize = 8;
+
+    let chunks = split_diff(diff, chunk_size);
+
+    // Summarize chunks concurrently (bounded), preserving order.
+    let tasks = chunks.into_iter().enumerate().map(|(i, chunk)| async move {
         let prompt = format!(
             "You are a code change summarization assistant. Summarize the main goal and impact of the following code changes in a concise sentence:\n\nPart {} of the diff:\n{}\n\nSummary:",
             i + 1,
             chunk
         );
+        (i, call_llm(provider, &prompt, model, max_token).await)
+    });
+    let results: Vec<_> = futures::stream::iter(tasks)
+        .buffered(MAX_CONCURRENT)
+        .collect()
+        .await;
 
-        match call_llm(&args.provider, &prompt, &args.model, args.max_token).await {
-            Ok(summary) => {
-                // println!("summary {i}: {summary}");
-                part_summaries.push(summary.trim().to_string())
-            }
+    let mut part_summaries = Vec::new();
+    for (i, res) in results {
+        match res {
+            Ok(summary) => part_summaries.push(summary.trim().to_string()),
             Err(e) => eprintln!("⚠️ summarizing chunk {} failed: {}", i + 1, e),
         }
     }
-    let combined_summary = part_summaries.join("\n");
-    // println!("{combined_summary}");
-    Ok(combined_summary)
+
+    if part_summaries.is_empty() {
+        return Err("all diff chunks failed to summarize".into());
+    }
+    Ok(part_summaries.join("\n"))
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
     let repo = Repository::discover(".").expect("Not a git repository");
-    let diff = get_staged_diff(&repo).unwrap_or_else(|| {
-        eprintln!("⚠️  No staged changes found – nothing to commit.");
-        std::process::exit(0);
-    });
+    let diff = match get_staged_diff(&repo) {
+        Ok(Some(diff)) => diff,
+        Ok(None) => {
+            eprintln!("⚠️  No staged changes found – nothing to commit.");
+            std::process::exit(0);
+        }
+        Err(e) => {
+            eprintln!("❌ Failed to read staged diff: {e}");
+            std::process::exit(1);
+        }
+    };
     let signkey = (!args.gpgsignkey.is_empty()).then_some(args.gpgsignkey.as_str());
+    let model = args
+        .model
+        .clone()
+        .unwrap_or_else(|| default_model(&args.provider).to_string());
     let commits = get_recent_commit_message(&repo).unwrap_or("None".to_string());
     let prompt = if diff.len() > args.chunk_size {
         println!(
             "Diff context is too large: {}, need to summarize",
             diff.len()
         );
-        let summary = match summarize_diff_in_chunks(&diff, &args).await {
+        let summary = match summarize_diff_in_chunks(
+            &diff,
+            &args.provider,
+            &model,
+            args.max_token,
+            args.chunk_size,
+        )
+        .await
+        {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("Error summarizing diff: {e}");
-                std::process::exit(0);
+                std::process::exit(1);
             }
         };
         CHUNK_PROMPT_TEMPLATE
@@ -141,9 +247,23 @@ async fn main() {
             .replace("{recent_commits}", &commits)
             .replace("{diff_context}", &diff)
     };
+    // Bound automatic (non-user-driven) regenerations so a model that keeps
+    // returning empty output can't spin forever without any input.
+    const MAX_EMPTY_RETRIES: u32 = 3;
+    let mut empty_retries = 0;
     loop {
-        match call_llm(&args.provider, &prompt, &args.model, args.max_token).await {
+        match call_llm(&args.provider, &prompt, &model, args.max_token).await {
             Ok(commit_msg) => {
+                if commit_msg.trim().is_empty() {
+                    empty_retries += 1;
+                    if empty_retries > MAX_EMPTY_RETRIES {
+                        eprintln!("❌ Model returned an empty commit message repeatedly. Aborting.");
+                        std::process::exit(1);
+                    }
+                    eprintln!("⚠️ Model returned an empty commit message. Regenerating...\n");
+                    continue;
+                }
+                empty_retries = 0;
                 print_commit_msg(&commit_msg);
                 match prompt_user_action() {
                     Ok(UserChoice::Abort) => {
@@ -166,7 +286,49 @@ async fn main() {
                     }
                 }
             }
-            Err(e) => eprintln!("generate failed: {e}"),
+            Err(e) => {
+                eprintln!("❌ Generate failed: {e}");
+                std::process::exit(1);
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{default_model, split_diff};
+
+    #[test]
+    fn split_diff_handles_multibyte_without_panicking() {
+        // Multibyte (each '世' is 3 bytes); a byte-based split would land mid-char.
+        let diff = "diff --git a/f b/f\n世界世界世界世界世界\n";
+        let chunks = split_diff(diff, 5);
+        assert!(chunks.len() > 1, "expected the file to be split");
+        // Every chunk is valid UTF-8 (guaranteed by &str) and they reassemble losslessly.
+        assert_eq!(chunks.concat(), diff);
+    }
+
+    #[test]
+    fn split_diff_packs_files_and_respects_boundaries() {
+        let diff = "diff --git a/x b/x\n+one\ndiff --git a/y b/y\n+two\n";
+        // Large chunk: both files pack into a single chunk.
+        let one = split_diff(diff, 1000);
+        assert_eq!(one.len(), 1);
+        assert_eq!(one.concat(), diff);
+        // Chunk sized to a single file: split on the file boundary, not mid-file.
+        let first_file_len = "diff --git a/x b/x\n+one\n".len();
+        let two = split_diff(diff, first_file_len);
+        assert_eq!(two.len(), 2);
+        assert!(two[0].starts_with("diff --git a/x"));
+        assert!(two[1].starts_with("diff --git a/y"));
+        assert_eq!(two.concat(), diff);
+    }
+
+    #[test]
+    fn default_model_is_provider_specific() {
+        assert_eq!(default_model("anthropic"), "claude-opus-4-8");
+        assert_eq!(default_model("ollama"), "llama3.2");
+        assert_eq!(default_model("openai"), "gpt-4o");
+        assert_eq!(default_model("anything-else"), "gpt-4o");
     }
 }

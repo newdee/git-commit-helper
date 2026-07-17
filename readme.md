@@ -17,17 +17,35 @@ cargo install git-commit-helper
 
 ## Usage
 
-This tool supports **either OpenAI or Ollama** as the language model provider.  
+This tool supports **OpenAI, Anthropic, or Ollama** as the language model provider.  
 **Configure only one provider at a time.**
 
 ### Environment Variables
 
-- **For OpenAI**:
+- **For OpenAI** (`-p openai`, the default):
   - `OPENAI_API_KEY` (**Required**)
   - `OPENAI_BASE_URL` (*Optional*, defaults to OpenAI's official endpoint)
 
-- **For Ollama**:
+- **For Anthropic** (`-p anthropic`):
+  - `ANTHROPIC_API_KEY` (**Required**)
+  - `ANTHROPIC_BASE_URL` (*Optional*, defaults to `https://api.anthropic.com/v1`)
+
+- **For Ollama** (`-p ollama`):
   - `OLLAMA_BASE_URL` (*Optional*, defaults to `http://localhost:11434`)
+
+When `--model` is omitted, a sensible default is chosen per provider
+(openai: `gpt-4o`, anthropic: `claude-opus-4-8`, ollama: `llama3.2`).
+
+### Large diffs
+
+If a staged diff is larger than `--chunk-size` bytes (default `200000`), it is split on
+file boundaries and each part is summarized separately before the commit message is
+generated. The parts are summarized concurrently, so large diffs stay fast.
+
+Modern models have much larger context windows (e.g. Claude's 1M tokens), so if you use a
+long-context model you can raise `--chunk-size` to fit the whole diff in a single request
+and skip summarization entirely — often producing a more accurate message. The default is
+kept conservative so it stays within `gpt-4o`'s context window out of the box.
 
 ### Example Command
 
@@ -37,8 +55,8 @@ Use this tool after running `git add`:
 Usage: git-commit-helper [OPTIONS]
 
 Options:
-  -p, --provider <PROVIDER>      [default: openai]
-  -m, --model <MODEL>            [default: gpt-4o]
+  -p, --provider <PROVIDER>      [default: openai]  (openai | anthropic | ollama)
+  -m, --model <MODEL>            [default: per-provider — see above]
       --gpgsign
       --gpgsignkey <GPGSIGNKEY>  [default: ]
       --max-token <MAX_TOKEN>    [default: 2048]
